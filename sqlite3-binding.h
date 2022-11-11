@@ -1,4 +1,3 @@
-#ifndef USE_LIBSQLITE3
 /*
 ** 2001-09-15
 **
@@ -147,9 +146,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.39.4"
-#define SQLITE_VERSION_NUMBER 3039004
-#define SQLITE_SOURCE_ID      "2022-09-29 15:55:41 a29f9949895322123f7c38fbe94c649a9d6e6c9cd0c3b41c96d694552f26b309"
+#define SQLITE_VERSION        "3.38.5"
+#define SQLITE_VERSION_NUMBER 3038005
+#define SQLITE_SOURCE_ID      "2022-05-06 16:52:22 0586b3e9632d12a08f17f3018b38ca4240a29d0b1be030b7b1d19bc0a9bc548a"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -5594,8 +5593,7 @@ SQLITE_API unsigned int sqlite3_value_subtype(sqlite3_value*);
 ** object D and returns a pointer to that copy.  ^The [sqlite3_value] returned
 ** is a [protected sqlite3_value] object even if the input is not.
 ** ^The sqlite3_value_dup(V) interface returns NULL if V is NULL or if a
-** memory allocation fails. ^If V is a [pointer value], then the result
-** of sqlite3_value_dup(V) is a NULL value.
+** memory allocation fails.
 **
 ** ^The sqlite3_value_free(V) interface frees an [sqlite3_value] object
 ** previously obtained from [sqlite3_value_dup()].  ^If V is a NULL pointer
@@ -6276,28 +6274,6 @@ SQLITE_API int sqlite3_get_autocommit(sqlite3*);
 ** create the statement in the first place.
 */
 SQLITE_API sqlite3 *sqlite3_db_handle(sqlite3_stmt*);
-
-/*
-** CAPI3REF: Return The Schema Name For A Database Connection
-** METHOD: sqlite3
-**
-** ^The sqlite3_db_name(D,N) interface returns a pointer to the schema name
-** for the N-th database on database connection D, or a NULL pointer of N is
-** out of range.  An N value of 0 means the main database file.  An N of 1 is
-** the "temp" schema.  Larger values of N correspond to various ATTACH-ed
-** databases.
-**
-** Space to hold the string that is returned by sqlite3_db_name() is managed
-** by SQLite itself.  The string might be deallocated by any operation that
-** changes the schema, including [ATTACH] or [DETACH] or calls to
-** [sqlite3_serialize()] or [sqlite3_deserialize()], even operations that
-** occur on a different thread.  Applications that need to
-** remember the string long-term should make their own copy.  Applications that
-** are accessing the same database connection simultaneously on multiple
-** threads should mutex-protect calls to this API and should make their own
-** private copy of the result prior to releasing the mutex.
-*/
-SQLITE_API const char *sqlite3_db_name(sqlite3 *db, int N);
 
 /*
 ** CAPI3REF: Return The Filename For A Database Connection
@@ -9578,8 +9554,8 @@ SQLITE_API SQLITE_EXPERIMENTAL const char *sqlite3_vtab_collation(sqlite3_index_
 ** of a [virtual table] implementation. The result of calling this
 ** interface from outside of xBestIndex() is undefined and probably harmful.
 **
-** ^The sqlite3_vtab_distinct() interface returns an integer between 0 and
-** 3.  The integer returned by sqlite3_vtab_distinct()
+** ^The sqlite3_vtab_distinct() interface returns an integer that is
+** either 0, 1, or 2.  The integer returned by sqlite3_vtab_distinct()
 ** gives the virtual table additional information about how the query
 ** planner wants the output to be ordered. As long as the virtual table
 ** can meet the ordering requirements of the query planner, it may set
@@ -9611,13 +9587,6 @@ SQLITE_API SQLITE_EXPERIMENTAL const char *sqlite3_vtab_collation(sqlite3_index_
 ** that have the same value for all columns identified by "aOrderBy".
 ** ^However omitting the extra rows is optional.
 ** This mode is used for a DISTINCT query.
-** <li value="3"><p>
-** ^(If the sqlite3_vtab_distinct() interface returns 3, that means
-** that the query planner needs only distinct rows but it does need the
-** rows to be sorted.)^ ^The virtual table implementation is free to omit
-** rows that are identical in all aOrderBy columns, if it wants to, but
-** it is not required to omit any rows.  This mode is used for queries
-** that have both DISTINCT and ORDER BY clauses.
 ** </ol>
 **
 ** ^For the purposes of comparing virtual table output values to see if the
@@ -10278,6 +10247,31 @@ SQLITE_API SQLITE_EXPERIMENTAL int sqlite3_snapshot_cmp(
 SQLITE_API SQLITE_EXPERIMENTAL int sqlite3_snapshot_recover(sqlite3 *db, const char *zDb);
 
 /*
+** CAPI3REF: Wal related information regarding the most recent COMMIT
+** EXPERIMENTAL
+**
+** This function reports on the state of the wal file (if any) for database
+** zDb, which should be "main", "temp", or the name of the attached database.
+** Its results - the values written to the output parameters - are only
+** defined if the most recent SQL command on the connection was a successful
+** COMMIT that wrote data to wal-mode database zDb.
+**
+** Assuming the above conditions are met, output parameter (*pnFrame) is set
+** to the total number of frames in the wal file. Parameter (*pnPrior) is
+** set to the number of frames that were present in the wal file before the
+** most recent transaction was committed. So that the number of frames written
+** by the most recent transaction is (*pnFrame)-(*pnPrior).
+**
+** If successful, SQLITE_OK is returned. Otherwise, an SQLite error code. It
+** is not an error if this function is called at a time when the results
+** are undefined.
+*/
+SQLITE_API SQLITE_EXPERIMENTAL int sqlite3_wal_info(
+  sqlite3 *db, const char *zDb,
+  unsigned int *pnPrior, unsigned int *pnFrame
+);
+
+/*
 ** CAPI3REF: Serialize a database
 **
 ** The sqlite3_serialize(D,S,P,F) interface returns a pointer to memory
@@ -10887,6 +10881,32 @@ SQLITE_API void sqlite3session_table_filter(
 ** resulting changeset will contain an UPDATE change that updates both fields.
 */
 SQLITE_API int sqlite3session_changeset(
+  sqlite3_session *pSession,      /* Session object */
+  int *pnChangeset,               /* OUT: Size of buffer at *ppChangeset */
+  void **ppChangeset              /* OUT: Buffer containing changeset */
+);
+
+/*
+** CAPI3REF: Generate A Full Changeset From A Session Object
+**
+** This function is similar to sqlite3session_changeset(), except that for
+** each row affected by an UPDATE statement, all old.* values are recorded
+** as part of the changeset, not just those modified.
+*/
+SQLITE_API int sqlite3session_fullchangeset(
+  sqlite3_session *pSession,      /* Session object */
+  int *pnChangeset,               /* OUT: Size of buffer at *ppChangeset */
+  void **ppChangeset              /* OUT: Buffer containing changeset */
+);
+
+/*
+** CAPI3REF: Generate A Full Changeset From A Session Object
+**
+** This function is similar to sqlite3session_changeset(), except that for
+** each row affected by an UPDATE statement, all old.* values are recorded
+** as part of the changeset, not just those modified.
+*/
+SQLITE_API int sqlite3session_fullchangeset(
   sqlite3_session *pSession,      /* Session object */
   int *pnChangeset,               /* OUT: Size of buffer at *ppChangeset */
   void **ppChangeset              /* OUT: Buffer containing changeset */
@@ -12835,103 +12855,3 @@ struct fts5_api {
 #endif /* _FTS5_H */
 
 /******** End of fts5.h *********/
-#else // USE_LIBSQLITE3
- // If users really want to link against the system sqlite3 we
-// need to make this file a noop.
- #endif
-/*
-** 2014-09-08
-**
-** The author disclaims copyright to this source code.  In place of
-** a legal notice, here is a blessing:
-**
-**    May you do good and not evil.
-**    May you find forgiveness for yourself and forgive others.
-**    May you share freely, never taking more than you give.
-**
-*************************************************************************
-**
-** This file contains the application interface definitions for the
-** user-authentication extension feature.
-**
-** To compile with the user-authentication feature, append this file to
-** end of an SQLite amalgamation header file ("sqlite3.h"), then add
-** the SQLITE_USER_AUTHENTICATION compile-time option.  See the
-** user-auth.txt file in the same source directory as this file for
-** additional information.
-*/
-#ifdef SQLITE_USER_AUTHENTICATION
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*
-** If a database contains the SQLITE_USER table, then the
-** sqlite3_user_authenticate() interface must be invoked with an
-** appropriate username and password prior to enable read and write
-** access to the database.
-**
-** Return SQLITE_OK on success or SQLITE_ERROR if the username/password
-** combination is incorrect or unknown.
-**
-** If the SQLITE_USER table is not present in the database file, then
-** this interface is a harmless no-op returnning SQLITE_OK.
-*/
-int sqlite3_user_authenticate(
-  sqlite3 *db,           /* The database connection */
-  const char *zUsername, /* Username */
-  const char *aPW,       /* Password or credentials */
-  int nPW                /* Number of bytes in aPW[] */
-);
-
-/*
-** The sqlite3_user_add() interface can be used (by an admin user only)
-** to create a new user.  When called on a no-authentication-required
-** database, this routine converts the database into an authentication-
-** required database, automatically makes the added user an
-** administrator, and logs in the current connection as that user.
-** The sqlite3_user_add() interface only works for the "main" database, not
-** for any ATTACH-ed databases.  Any call to sqlite3_user_add() by a
-** non-admin user results in an error.
-*/
-int sqlite3_user_add(
-  sqlite3 *db,           /* Database connection */
-  const char *zUsername, /* Username to be added */
-  const char *aPW,       /* Password or credentials */
-  int nPW,               /* Number of bytes in aPW[] */
-  int isAdmin            /* True to give new user admin privilege */
-);
-
-/*
-** The sqlite3_user_change() interface can be used to change a users
-** login credentials or admin privilege.  Any user can change their own
-** login credentials.  Only an admin user can change another users login
-** credentials or admin privilege setting.  No user may change their own 
-** admin privilege setting.
-*/
-int sqlite3_user_change(
-  sqlite3 *db,           /* Database connection */
-  const char *zUsername, /* Username to change */
-  const char *aPW,       /* New password or credentials */
-  int nPW,               /* Number of bytes in aPW[] */
-  int isAdmin            /* Modified admin privilege for the user */
-);
-
-/*
-** The sqlite3_user_delete() interface can be used (by an admin user only)
-** to delete a user.  The currently logged-in user cannot be deleted,
-** which guarantees that there is always an admin user and hence that
-** the database cannot be converted into a no-authentication-required
-** database.
-*/
-int sqlite3_user_delete(
-  sqlite3 *db,           /* Database connection */
-  const char *zUsername  /* Username to remove */
-);
-
-#ifdef __cplusplus
-}  /* end of the 'extern "C"' block */
-#endif
-
-#endif /* SQLITE_USER_AUTHENTICATION */

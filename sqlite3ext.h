@@ -1,4 +1,3 @@
-#ifndef USE_LIBSQLITE3
 /*
 ** 2006 June 7
 **
@@ -18,11 +17,7 @@
 */
 #ifndef SQLITE3EXT_H
 #define SQLITE3EXT_H
-#include "sqlite3-binding.h"
-#ifdef __clang__
-#define assert(condition) ((void)0)
-#endif
-
+#include "sqlite3.h"
 
 /*
 ** The following structure holds pointers to all of the SQLite API
@@ -356,12 +351,6 @@ struct sqlite3_api_routines {
   int (*vtab_in)(sqlite3_index_info*,int,int);
   int (*vtab_in_first)(sqlite3_value*,sqlite3_value**);
   int (*vtab_in_next)(sqlite3_value*,sqlite3_value**);
-  /* Version 3.39.0 and later */
-  int (*deserialize)(sqlite3*,const char*,unsigned char*,
-                     sqlite3_int64,sqlite3_int64,unsigned);
-  unsigned char *(*serialize)(sqlite3*,const char *,sqlite3_int64*,
-                              unsigned int);
-  const char *(*db_name)(sqlite3*,int);
 };
 
 /*
@@ -680,12 +669,6 @@ typedef int (*sqlite3_loadext_entry)(
 #define sqlite3_vtab_in                sqlite3_api->vtab_in
 #define sqlite3_vtab_in_first          sqlite3_api->vtab_in_first
 #define sqlite3_vtab_in_next           sqlite3_api->vtab_in_next
-/* Version 3.39.0 and later */
-#ifndef SQLITE_OMIT_DESERIALIZE
-#define sqlite3_deserialize            sqlite3_api->deserialize
-#define sqlite3_serialize              sqlite3_api->serialize
-#endif
-#define sqlite3_db_name                sqlite3_api->db_name
 #endif /* !defined(SQLITE_CORE) && !defined(SQLITE_OMIT_LOAD_EXTENSION) */
 
 #if !defined(SQLITE_CORE) && !defined(SQLITE_OMIT_LOAD_EXTENSION)
@@ -704,7 +687,3 @@ typedef int (*sqlite3_loadext_entry)(
 #endif
 
 #endif /* SQLITE3EXT_H */
-#else // USE_LIBSQLITE3
- // If users really want to link against the system sqlite3 we
-// need to make this file a noop.
- #endif
